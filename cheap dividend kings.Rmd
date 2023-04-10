@@ -4,3 +4,57 @@ output: html_document
 date: '2023-04-09'
 ---
 
+```{r setup, include=FALSE, warning=FALSE}
+
+library(tidyverse)
+library(lubridate)
+library(tidyquant)
+
+```
+
+```{r error=FALSE, message=FALSE, warning=FALSE}
+
+tickers <- c("DOV",	"GPC",	"PG",	"EMR",	"MMM",	"CINF",	"KO",	"JNJ",	"CL",	"ITW",	"HRL",	"SWK",	"FRT",	"SYY",	"GWW",	"BDX",	"PPG",	"TGT",	"ABBV",	"ABT",	"KMB",	"PEP",	"NUE",	"SPGI",	"ADM",	"WMT",	"VFC",	"ED",	"LOW",	"ADP",	"WBA",	"PNR",	"MCD",	"MDT",	"SHW",	"BEN",	"APD",	"AMCR",	"XOM",	"AFL",	"CTAS",	"BF.B",	"ATO",	"MKC",	"TROW",	"CAH",	"CLX",	"CVX",	"AOS",	"ECL",	"WST",	"ROP",	"LIN",	"CAT",	"CB",	"EXPD",	"BRO",	"ALB",	"ESS",	"O",	"IBM",	"NEE",	"CHD",	"GD")
+
+final_table <- tibble()
+
+for(t in tickers) {
+
+  tryCatch({
+
+  ### Get stock info ###
+  stock <- tq_get(t,
+                 from = today() - years(20),
+                 to = today(),
+                 get = "stock.prices") 
+  
+  stock <- stock %>%
+    select(-c("open":"close")) %>%
+    mutate(change_last_90 = ((adjusted - lag(adjusted, 60, fill = NA)) / lag(adjusted, 60, fill = NA) * 100),
+           max_next_90 = rollmax(adjusted, 60, fill = NA, align = "left"),
+           success = if_else(max_next_90 >= adjusted * 1.1,1,0))
+
+  ### Save last date info into variable ###
+  last_date <- slice(stock, n())[5] %>%
+    as_vector()
+
+  ### Drop NA's ###
+  stock <- stock %>%
+    drop_na() %>%
+    filter(change_last_90 <= last_date) %>%
+    group_by(symbol) %>%
+    summarize(n = n(),
+              chance = mean(success))
+
+
+  final_table <- bind_rows(final_table, stock) 
+
+  }, error=function(e){})
+
+}
+
+final_table %>%
+  arrange(desc(chance)) %>%
+  View()
+
+```
